@@ -38,12 +38,10 @@ def generate_bullet_summary(text, max_bullets=2):
     if not cleaned:
         return "• Bấm vào 'Xem bài gốc' để xem chi tiết."
     
-    # Tách văn bản thành các câu dựa trên dấu chấm
     sentences = [s.strip() for s in re.split(r'\.|\?|\!', cleaned) if len(s.strip()) > 15]
     if not sentences:
         return f"• {cleaned[:120]}..."
     
-    # Lấy 2 câu đầu làm gạch đầu dòng
     bullets = [f"• {s}." for s in sentences[:max_bullets]]
     return "\n".join(bullets)
 
@@ -153,11 +151,19 @@ st.markdown("""
         color: white;
         border-radius: 4px;
     }
+    .footer {
+        text-align: center;
+        padding: 20px;
+        font-size: 14px;
+        color: #6c757d;
+        margin-top: 30px;
+        border-top: 1px solid #e9ecef;
+    }
     </style>
 """, unsafe_allow_html=True)
 
 st.title("📊 Daily News & Financial Visual Dashboard")
-st.caption("Tổng hợp & Trực quan hóa dữ liệu Tin tức trong ngày")
+st.caption("🚀 Hệ thống tổng hợp & Trực quan hóa dữ liệu Tin tức | **Nội dung được tạo bởi tiennguyenks**")
 
 if st.button("🔄 Cập nhật dữ liệu ngay"):
     st.cache_data.clear()
@@ -173,11 +179,10 @@ with st.spinner("Đang xử lý dữ liệu và tạo biểu đồ trực quan..
     vn_news, world_news, gold_news = load_all_data()
 
 # ==============================================================================
-# PHẦN 1: TỔNG QUAN VÀ BIỂU ĐỒ TRỰC QUAN (VISUAL METRICS & CHARTS)
+# PHẦN 1: TỔNG QUAN VÀ BIỂU ĐỒ TRỰC QUAN
 # ==============================================================================
 st.markdown("### 📈 Tổng quan Chỉ số & Phân tích Thị trường")
 
-# Tính toán tỷ lệ biến động giá vàng cho biểu đồ
 trend_counts = {"TĂNG 🔺": 0, "GIẢM 🔻": 0, "TRUNG LẬP": 0}
 for item in gold_news:
     trend_counts[item["trend"]] += 1
@@ -195,7 +200,6 @@ col_chart, col_gold = st.columns([1, 1.8])
 with col_chart:
     st.markdown("##### 🟡 Biểu đồ Tỷ lệ Xu hướng Giá vàng")
     if gold_news:
-        # Vẽ biểu đồ tròn dạng Donut bằng Plotly
         df_chart = pd.DataFrame(list(trend_counts.items()), columns=['Xu hướng', 'Số lượng'])
         fig = px.pie(
             df_chart, 
@@ -230,7 +234,7 @@ with col_gold:
 st.markdown("---")
 
 # ==============================================================================
-# PHẦN 2: TIN TỨC TRONG NƯỚC & QUỐC TẾ (ĐÃ TÓM TẮT DẠNG BULLET)
+# PHẦN 2: TIN TỨC TRONG NƯỚC & QUỐC TẾ
 # ==============================================================================
 col1, col2 = st.columns(2)
 
@@ -265,3 +269,12 @@ with col2:
                 </div>
             </div>
         """, unsafe_allow_html=True)
+
+# ==============================================================================
+# CHÂN TRANG (FOOTER)
+# ==============================================================================
+st.markdown("""
+    <div class="footer">
+        © Daily News & Financial Dashboard | <strong>Nội dung được tạo bởi tiennguyenks</strong>
+    </div>
+""", unsafe_allow_html=True)
