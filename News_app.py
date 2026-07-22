@@ -2,11 +2,12 @@ import streamlit as st
 import feedparser
 import concurrent.futures
 import re
+import plotly.express as px
+import pandas as pd
 
 # ==============================================================================
 # CẤU HÌNH HỆ THỐNG & NGUỒN TIN
 # ==============================================================================
-# Nguồn RSS tin tức
 RSS_FEEDS = {
     "Trong nước": [
         {"name": "VnExpress - Thời sự", "url": "https://vnexpress.net/rss/thoi-su.rss"},
@@ -20,21 +21,33 @@ RSS_FEEDS = {
     ]
 }
 
-# Nguồn tin tức riêng về Thị trường & Giá vàng
 GOLD_NEWS_FEED = "https://vnexpress.net/rss/kinh-doanh.rss"
 
 # ==============================================================================
-# CÁC HÀM XỬ LÝ DỮ LIỆU
+# CÁC HÀM XỬ LÝ DỮ LIỆU & TÓM TẮT TRỰC QUAN
 # ==============================================================================
 def clean_html(raw_html):
-    """Làm sạch mã HTML thừa trong văn bản RSS"""
+    """Làm sạch mã HTML thừa"""
     if not raw_html:
-        return "Bấm vào 'Xem bài gốc' để xem chi tiết."
-    clean_text = re.sub('<[^<]+?>', '', raw_html).strip()
-    return clean_text if clean_text else "Bấm vào 'Xem bài gốc' để xem chi tiết."
+        return ""
+    return re.sub('<[^<]+?>', '', raw_html).strip()
+
+def generate_bullet_summary(text, max_bullets=2):
+    """Tách câu thông minh để tạo tóm tắt gạch đầu dòng trực quan"""
+    cleaned = clean_html(text)
+    if not cleaned:
+        return "• Bấm vào 'Xem bài gốc' để xem chi tiết."
+    
+    # Tách văn bản thành các câu dựa trên dấu chấm
+    sentences = [s.strip() for s in re.split(r'\.|\?|\!', cleaned) if len(s.strip()) > 15]
+    if not sentences:
+        return f"• {cleaned[:120]}..."
+    
+    # Lấy 2 câu đầu làm gạch đầu dòng
+    bullets = [f"• {s}." for s in sentences[:max_bullets]]
+    return "\n".join(bullets)
 
 def fetch_news_from_feed(feed_info, limit=8):
-    """Lấy tin tức từ 1 nguồn RSS"""
     try:
         feed = feedparser.parse(feed_info["url"])
         articles = []
@@ -50,7 +63,6 @@ def fetch_news_from_feed(feed_info, limit=8):
         return []
 
 def get_all_news(feed_list):
-    """Lấy tin tức đa luồng siêu tốc"""
     all_articles = []
     with concurrent.futures.ThreadPoolExecutor() as executor:
         results = executor.map(lambda f: fetch_news_from_feed(f, limit=8), feed_list)
@@ -59,7 +71,6 @@ def get_all_news(feed_list):
     return all_articles
 
 def fetch_gold_trends():
-    """Lọc các bài tin liên quan đến Giá vàng để phân tích xu hướng"""
     try:
         feed = feedparser.parse(GOLD_NEWS_FEED)
         gold_articles = []
@@ -70,9 +81,7 @@ def fetch_gold_trends():
             summary = entry.get("summary", "")
             full_text = f"{title} {summary}".lower()
             
-            # Kiểm tra xem bài báo có chứa từ khóa về giá vàng không
             if any(kw in full_text for kw in keywords):
-                # Phân tích xu hướng dựa trên từ khóa trong tiêu đề
                 trend = "TRUNG LẬP"
                 trend_color = "#6c757d"
                 if any(word in full_text for word in ["tăng", "lập đỉnh", "vọt", "bật tăng", "vượt"]):
@@ -85,135 +94,174 @@ def fetch_gold_trends():
                 gold_articles.append({
                     "title": title,
                     "link": entry.get("link", ""),
-                    "summary": clean_html(summary),
+                    "summary": summary,
                     "trend": trend,
                     "trend_color": trend_color
                 })
-        return gold_articles[:3] # Lấy 3 tin mới nhất về vàng
+        return gold_articles
     except Exception:
         return []
 
 # ==============================================================================
 # GIAO DIỆN DASHBOARD (STREAMLIT)
 # ==============================================================================
-st.set_page_config(page_title="Daily News & Gold Dashboard", layout="wide")
+st.set_page_config(page_title="Visual Daily News & Gold Dashboard", layout="wide")
 
-# Cấu hình CSS tùy biến giao diện
+# CSS tối ưu hiển thị
 st.markdown("""
     <style>
-    .stApp { background-color: #f7f9fa; }
+    .stApp { background-color: #f8f9fa; }
     .gold-box {
-        background-color: #fff8e1;
-        padding: 15px 20px;
+        background-color: #ffffff;
+        padding: 16px;
         border-radius: 10px;
-        border-left: 6px solid #ffc107;
-        margin-bottom: 25px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        border-top: 4px solid #ffc107;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        margin-bottom: 15px;
     }
     .news-card {
         background-color: #ffffff;
         padding: 18px;
         border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        border-left: 5px solid #007bff;
-        margin-bottom: 18px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        border-left: 4px solid #0d6efd;
+        margin-bottom: 16px;
     }
     .news-card-global {
         background-color: #ffffff;
         padding: 18px;
         border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        border-left: 5px solid #28a745;
-        margin-bottom: 18px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        border-left: 4px solid #198754;
+        margin-bottom: 16px;
     }
-    .news-title { font-size: 17px; font-weight: bold; color: #111111; margin-bottom: 6px; }
-    .news-meta { font-size: 13px; color: #6c757d; margin-bottom: 10px; }
-    .news-summary { font-size: 14px; color: #333333; line-height: 1.5; }
+    .news-title { font-size: 16px; font-weight: bold; color: #212529; margin-bottom: 6px; }
+    .news-meta { font-size: 12px; color: #6c757d; margin-bottom: 10px; }
+    .bullet-summary { 
+        background-color: #f1f3f5; 
+        padding: 10px 14px; 
+        border-radius: 6px; 
+        font-size: 13.5px; 
+        color: #343a40;
+        line-height: 1.6;
+    }
     .trend-badge {
         display: inline-block;
-        padding: 3px 8px;
-        font-size: 12px;
+        padding: 2px 8px;
+        font-size: 11px;
         font-weight: bold;
         color: white;
         border-radius: 4px;
-        margin-left: 8px;
     }
     </style>
 """, unsafe_allow_html=True)
 
-st.title("📰 Daily News & Financial Dashboard")
-st.caption("Tự động tổng hợp Tin tức & Xu hướng Giá vàng trong ngày - Chi phí 0đ")
+st.title("📊 Daily News & Financial Visual Dashboard")
+st.caption("Tổng hợp & Trực quan hóa dữ liệu Tin tức trong ngày")
 
-# Nút cập nhật
 if st.button("🔄 Cập nhật dữ liệu ngay"):
     st.cache_data.clear()
 
-@st.cache_data(ttl=900) # Lưu bộ nhớ đệm 15 phút
+@st.cache_data(ttl=900)
 def load_all_data():
     vn_raw = get_all_news(RSS_FEEDS["Trong nước"])
     world_raw = get_all_news(RSS_FEEDS["Thế giới"])
     gold_data = fetch_gold_trends()
     return vn_raw, world_raw, gold_data
 
-with st.spinner("Đang tải tin tức và phân tích biến động thị trường..."):
+with st.spinner("Đang xử lý dữ liệu và tạo biểu đồ trực quan..."):
     vn_news, world_news, gold_news = load_all_data()
 
 # ==============================================================================
-# PHẦN 1: TỔNG HỢP XU HƯỚNG GIÁ VÀNG
+# PHẦN 1: TỔNG QUAN VÀ BIỂU ĐỒ TRỰC QUAN (VISUAL METRICS & CHARTS)
 # ==============================================================================
-st.markdown("### 🟡 Xu hướng & Biến động Giá vàng hôm nay")
+st.markdown("### 📈 Tổng quan Chỉ số & Phân tích Thị trường")
 
-if gold_news:
-    gold_cols = st.columns(len(gold_news))
-    for i, g_item in enumerate(gold_news):
-        with gold_cols[i]:
+# Tính toán tỷ lệ biến động giá vàng cho biểu đồ
+trend_counts = {"TĂNG 🔺": 0, "GIẢM 🔻": 0, "TRUNG LẬP": 0}
+for item in gold_news:
+    trend_counts[item["trend"]] += 1
+
+m1, m2, m3, m4 = st.columns(4)
+m1.metric("Tin trong nước", f"{len(vn_news)} bài")
+m2.metric("Tin quốc tế", f"{len(world_news)} bài")
+m3.metric("Tin về giá vàng", f"{len(gold_news)} tin")
+m4.metric("Xu hướng Vàng chủ đạo", max(trend_counts, key=trend_counts.get) if gold_news else "N/A")
+
+st.markdown("---")
+
+col_chart, col_gold = st.columns([1, 1.8])
+
+with col_chart:
+    st.markdown("##### 🟡 Biểu đồ Tỷ lệ Xu hướng Giá vàng")
+    if gold_news:
+        # Vẽ biểu đồ tròn dạng Donut bằng Plotly
+        df_chart = pd.DataFrame(list(trend_counts.items()), columns=['Xu hướng', 'Số lượng'])
+        fig = px.pie(
+            df_chart, 
+            values='Số lượng', 
+            names='Xu hướng', 
+            hole=0.5,
+            color='Xu hướng',
+            color_discrete_map={'TĂNG 🔺': '#28a745', 'GIẢM 🔻': '#dc3545', 'TRUNG LẬP': '#6c757d'}
+        )
+        fig.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=220)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Chưa đủ dữ liệu để vẽ biểu đồ xu hướng.")
+
+with col_gold:
+    st.markdown("##### 📰 Bài viết Phân tích Giá vàng Mới nhất")
+    if gold_news:
+        for g_item in gold_news[:2]:
             st.markdown(f"""
                 <div class="gold-box">
-                    <span style="font-size: 12px; color: #856404; font-weight: bold;">TIN THỊ TRƯỜNG</span>
                     <span class="trend-badge" style="background-color: {g_item['trend_color']};">{g_item['trend']}</span>
-                    <div style="font-size: 15px; font-weight: bold; margin-top: 8px; color: #212529;">
-                        {g_item['title']}
+                    <strong style="font-size: 14px; margin-left: 6px;">{g_item['title']}</strong>
+                    <div class="bullet-summary" style="margin-top: 8px;">
+                        {generate_bullet_summary(g_item['summary'])}
                     </div>
-                    <div style="font-size: 13px; color: #555; margin-top: 6px; line-height: 1.4;">
-                        {g_item['summary'][:130]}...
-                    </div>
-                    <div style="margin-top: 8px; font-size: 12px;">
-                        <a href="{g_item['link']}" target="_blank">Đọc phân tích chi tiết ↗</a>
+                    <div style="margin-top: 6px; font-size: 11px;">
+                        <a href="{g_item['link']}" target="_blank">Đọc bài gốc ↗</a>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
-else:
-    st.info("Chưa tìm thấy bài viết phân tích giá vàng mới trong vài giờ qua.")
 
 st.markdown("---")
 
 # ==============================================================================
-# PHẦN 2: TIN TỨC TRONG NƯỚC & QUỐC TẾ
+# PHẦN 2: TIN TỨC TRONG NƯỚC & QUỐC TẾ (ĐÃ TÓM TẮT DẠNG BULLET)
 # ==============================================================================
 col1, col2 = st.columns(2)
 
 with col1:
     st.markdown("## 🇻🇳 Tin tức Trong nước")
-    st.write(f"Cập nhật *{len(vn_news)}* tin tức mới nhất.")
     
     for idx, item in enumerate(vn_news):
+        bullet_text = generate_bullet_summary(item['summary'])
         st.markdown(f"""
             <div class="news-card">
                 <div class="news-title">{idx+1}. {item['title']}</div>
                 <div class="news-meta">Nguồn: {item['source']} | <a href="{item['link']}" target="_blank">Xem bài gốc ↗</a></div>
-                <div class="news-summary">{clean_html(item['summary'])}</div>
+                <div class="bullet-summary">
+                    <b>📌 Tóm tắt nhanh:</b><br>
+                    {bullet_text.replace('\n', '<br>')}
+                </div>
             </div>
         """, unsafe_allow_html=True)
 
 with col2:
     st.markdown("## 🌐 Tin tức Quốc tế")
-    st.write(f"Cập nhật *{len(world_news)}* tin tức toàn cầu.")
     
     for idx, item in enumerate(world_news):
+        bullet_text = generate_bullet_summary(item['summary'])
         st.markdown(f"""
             <div class="news-card-global">
                 <div class="news-title">{idx+1}. {item['title']}</div>
                 <div class="news-meta">Nguồn: {item['source']} | <a href="{item['link']}" target="_blank">Xem bài gốc ↗</a></div>
-                <div class="news-summary">{clean_html(item['summary'])}</div>
+                <div class="bullet-summary">
+                    <b>📌 Tóm tắt nhanh:</b><br>
+                    {bullet_text.replace('\n', '<br>')}
+                </div>
             </div>
         """, unsafe_allow_html=True)
