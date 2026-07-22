@@ -6,7 +6,7 @@ import plotly.express as px
 import pandas as pd
 
 # ==============================================================================
-# CẤU HÌNH HỆ THỐNG & NGUỒN TIN
+# CẤU HÌNH HỆ THỐNG & DỰA TRÊN DÂNHMỤC NGUỒN TIN DÀNH CHO BẠN
 # ==============================================================================
 RSS_FEEDS = {
     "Trong nước": [
@@ -18,22 +18,29 @@ RSS_FEEDS = {
         {"name": "Reuters - World", "url": "https://news.google.com/rss/search?q=when:1d+source:Reuters&hl=en-US&gl=US&ceid=US:en"},
         {"name": "BBC News - World", "url": "http://feeds.bbci.co.uk/news/world/rss.xml"},
         {"name": "CNN - Top Stories", "url": "http://rss.cnn.com/rss/edition.rss"}
+    ],
+    "Công nghệ & Năng lượng": [
+        {"name": "VnExpress - Khoa học Công nghệ", "url": "https://vnexpress.net/rss/khoa-hoc.rss"},
+        {"name": "VietNamNet - Công nghệ", "url": "https://vietnamnet.vn/rss/cong-nghe.rss"},
+        {"name": "Google News - Năng lượng & BESS", "url": "https://news.google.com/rss/search?q=renewable+energy+OR+BESS+OR+energy+storage+OR+battery+when:1d&hl=en-US&gl=US&ceid=US:en"}
+    ],
+    "Thị trường & Trung Quốc": [
+        {"name": "VnExpress - Kinh doanh", "url": "https://vnexpress.net/rss/kinh-doanh.rss"},
+        {"name": "Google News - Xu hướng Trung Quốc", "url": "https://news.google.com/rss/search?q=China+tech+OR+China+export+OR+China+manufacturing+when:1d&hl=en-US&gl=US&ceid=US:en"}
     ]
 }
 
 GOLD_NEWS_FEED = "https://vnexpress.net/rss/kinh-doanh.rss"
 
 # ==============================================================================
-# CÁC HÀM XỬ LÝ DỮ LIỆU & TÓM TẮT TRỰC QUAN
+# CÁC HÀM XỬ LÝ DỮ LIỆU & PHÂN LOẠI CHUYÊN SÂU
 # ==============================================================================
 def clean_html(raw_html):
-    """Làm sạch mã HTML thừa"""
     if not raw_html:
         return ""
     return re.sub('<[^<]+?>', '', raw_html).strip()
 
 def generate_bullet_summary(text, max_bullets=2):
-    """Tách câu thông minh để tạo tóm tắt gạch đầu dòng trực quan"""
     cleaned = clean_html(text)
     if not cleaned:
         return "• Bấm vào 'Xem bài gốc' để xem chi tiết."
@@ -45,7 +52,7 @@ def generate_bullet_summary(text, max_bullets=2):
     bullets = [f"• {s}." for s in sentences[:max_bullets]]
     return "\n".join(bullets)
 
-def fetch_news_from_feed(feed_info, limit=8):
+def fetch_news_from_feed(feed_info, limit=6):
     try:
         feed = feedparser.parse(feed_info["url"])
         articles = []
@@ -63,7 +70,7 @@ def fetch_news_from_feed(feed_info, limit=8):
 def get_all_news(feed_list):
     all_articles = []
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        results = executor.map(lambda f: fetch_news_from_feed(f, limit=8), feed_list)
+        results = executor.map(lambda f: fetch_news_from_feed(f, limit=6), feed_list)
         for res in results:
             all_articles.extend(res)
     return all_articles
@@ -100,12 +107,20 @@ def fetch_gold_trends():
     except Exception:
         return []
 
+# Filter lọc chủ đề chuyên sâu
+def filter_specialized_news(articles, keywords):
+    filtered = []
+    for item in articles:
+        full_text = f"{item['title']} {item['summary']}".lower()
+        if any(kw.lower() in full_text for kw in keywords):
+            filtered.append(item)
+    return filtered
+
 # ==============================================================================
 # GIAO DIỆN DASHBOARD (STREAMLIT)
 # ==============================================================================
-st.set_page_config(page_title="Visual Daily News & Gold Dashboard", layout="wide")
+st.set_page_config(page_title="Visual Daily News & Industry Dashboard", layout="wide")
 
-# CSS tối ưu hiển thị
 st.markdown("""
     <style>
     .stApp { background-color: #f8f9fa; }
@@ -119,7 +134,7 @@ st.markdown("""
     }
     .news-card {
         background-color: #ffffff;
-        padding: 18px;
+        padding: 16px;
         border-radius: 10px;
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         border-left: 4px solid #0d6efd;
@@ -127,13 +142,21 @@ st.markdown("""
     }
     .news-card-global {
         background-color: #ffffff;
-        padding: 18px;
+        padding: 16px;
         border-radius: 10px;
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         border-left: 4px solid #198754;
         margin-bottom: 16px;
     }
-    .news-title { font-size: 16px; font-weight: bold; color: #212529; margin-bottom: 6px; }
+    .news-card-tech {
+        background-color: #ffffff;
+        padding: 16px;
+        border-radius: 10px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        border-left: 4px solid #6f42c1;
+        margin-bottom: 16px;
+    }
+    .news-title { font-size: 15.5px; font-weight: bold; color: #212529; margin-bottom: 6px; }
     .news-meta { font-size: 12px; color: #6c757d; margin-bottom: 10px; }
     .bullet-summary { 
         background-color: #f1f3f5; 
@@ -162,8 +185,8 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("📊 Daily News & Financial Visual Dashboard")
-st.caption("🚀 Hệ thống tổng hợp & Trực quan hóa dữ liệu Tin tức | **Nội dung được tạo bởi tiennguyenks**")
+st.title("📊 Daily News & Industry Trends Dashboard")
+st.caption("🚀 Hệ thống tổng hợp, Trực quan hóa Tin tức & Xu hướng Ngành | **Nội dung được tạo bởi tiennguyenks**")
 
 if st.button("🔄 Cập nhật dữ liệu ngay"):
     st.cache_data.clear()
@@ -172,11 +195,24 @@ if st.button("🔄 Cập nhật dữ liệu ngay"):
 def load_all_data():
     vn_raw = get_all_news(RSS_FEEDS["Trong nước"])
     world_raw = get_all_news(RSS_FEEDS["Thế giới"])
+    tech_raw = get_all_news(RSS_FEEDS["Công nghệ & Năng lượng"])
+    market_raw = get_all_news(RSS_FEEDS["Thị trường & Trung Quốc"])
     gold_data = fetch_gold_trends()
-    return vn_raw, world_raw, gold_data
+    return vn_raw, world_raw, tech_raw, market_raw, gold_data
 
-with st.spinner("Đang xử lý dữ liệu và tạo biểu đồ trực quan..."):
-    vn_news, world_news, gold_news = load_all_data()
+with st.spinner("Đang kết nối nguồn tin kỹ thuật, năng lượng và thị trường..."):
+    vn_news, world_news, tech_news, market_news, gold_news = load_all_data()
+
+# Lọc tin chuyên ngành
+energy_bess_news = filter_specialized_news(
+    tech_news + world_news + vn_news, 
+    ["năng lượng", "bess", "pin", "nguồn điện", "điện gió", "mặt trời", "renewable", "battery", "grid", "trạm biến áp", "lưới điện", "power"]
+)
+
+china_biz_news = filter_specialized_news(
+    market_news + world_news, 
+    ["trung quốc", "china", "xuất khẩu", "kinh doanh", "mặt hàng", "sản xuất", "chuỗi cung ứng", "xu hướng", "thị trường"]
+)
 
 # ==============================================================================
 # PHẦN 1: TỔNG QUAN VÀ BIỂU ĐỒ TRỰC QUAN
@@ -187,11 +223,12 @@ trend_counts = {"TĂNG 🔺": 0, "GIẢM 🔻": 0, "TRUNG LẬP": 0}
 for item in gold_news:
     trend_counts[item["trend"]] += 1
 
-m1, m2, m3, m4 = st.columns(4)
+m1, m2, m3, m4, m5 = st.columns(5)
 m1.metric("Tin trong nước", f"{len(vn_news)} bài")
 m2.metric("Tin quốc tế", f"{len(world_news)} bài")
-m3.metric("Tin về giá vàng", f"{len(gold_news)} tin")
-m4.metric("Xu hướng Vàng chủ đạo", max(trend_counts, key=trend_counts.get) if gold_news else "N/A")
+m3.metric("Năng lượng & BESS", f"{len(energy_bess_news)} tin")
+m4.metric("Thị trường/TQ", f"{len(china_biz_news)} tin")
+m5.metric("Xu hướng Vàng", max(trend_counts, key=trend_counts.get) if gold_news else "N/A")
 
 st.markdown("---")
 
@@ -234,14 +271,63 @@ with col_gold:
 st.markdown("---")
 
 # ==============================================================================
-# PHẦN 2: TIN TỨC TRONG NƯỚC & QUỐC TẾ
+# PHẦN 2: CHUYÊN MỤC CÔNG NGHỆ, NĂNG LƯỢNG TÁI TẠO, BESS & THỊ TRƯỜNG TRUNG QUỐC
+# ==============================================================================
+st.markdown("### ⚡ Công nghệ mới, Năng lượng tái tạo, BESS & Xu thế Thị trường")
+
+tab1, tab2 = st.tabs(["🔋 Năng lượng tái tạo, BESS & Nguồn điện", "🇨🇳 Xu thế Kinh doanh & Mặt hàng mới từ Trung Quốc"])
+
+with tab1:
+    if energy_bess_news:
+        cols = st.columns(2)
+        for idx, item in enumerate(energy_bess_news[:6]):
+            col_idx = idx % 2
+            with cols[col_idx]:
+                bullet_text = generate_bullet_summary(item['summary'])
+                st.markdown(f"""
+                    <div class="news-card-tech">
+                        <div class="news-title">⚡ {item['title']}</div>
+                        <div class="news-meta">Nguồn: {item['source']} | <a href="{item['link']}" target="_blank">Xem bài gốc ↗</a></div>
+                        <div class="bullet-summary">
+                            <b>📌 Điểm tin cốt lõi:</b><br>
+                            {bullet_text.replace('\n', '<br>')}
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+    else:
+        st.info("Chưa tìm thấy tin tức mới phát sinh về Năng lượng tái tạo/BESS trong vài giờ qua.")
+
+with tab2:
+    if china_biz_news:
+        cols = st.columns(2)
+        for idx, item in enumerate(china_biz_news[:6]):
+            col_idx = idx % 2
+            with cols[col_idx]:
+                bullet_text = generate_bullet_summary(item['summary'])
+                st.markdown(f"""
+                    <div class="news-card-tech">
+                        <div class="news-title">📦 {item['title']}</div>
+                        <div class="news-meta">Nguồn: {item['source']} | <a href="{item['link']}" target="_blank">Xem bài gốc ↗</a></div>
+                        <div class="bullet-summary">
+                            <b>📌 Điểm tin cốt lõi:</b><br>
+                            {bullet_text.replace('\n', '<br>')}
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+    else:
+        st.info("Chưa tìm thấy tin tức mới về Thị trường & Mặt hàng Trung Quốc.")
+
+st.markdown("---")
+
+# ==============================================================================
+# PHẦN 3: TIN TỨC TRONG NƯỚC & QUỐC TẾ
 # ==============================================================================
 col1, col2 = st.columns(2)
 
 with col1:
     st.markdown("## 🇻🇳 Tin tức Trong nước")
     
-    for idx, item in enumerate(vn_news):
+    for idx, item in enumerate(vn_news[:6]):
         bullet_text = generate_bullet_summary(item['summary'])
         st.markdown(f"""
             <div class="news-card">
@@ -257,7 +343,7 @@ with col1:
 with col2:
     st.markdown("## 🌐 Tin tức Quốc tế")
     
-    for idx, item in enumerate(world_news):
+    for idx, item in enumerate(world_news[:6]):
         bullet_text = generate_bullet_summary(item['summary'])
         st.markdown(f"""
             <div class="news-card-global">
