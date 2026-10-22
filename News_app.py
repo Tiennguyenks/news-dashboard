@@ -584,6 +584,29 @@ st.caption(
     "không chính xác vì đây không phải cơ sở dữ liệu đầy đủ của các sàn."
 )
 
+# Liên kết trực tiếp để người dùng tự tìm tin khi RSS không trả kết quả.
+st.markdown("#### 🔗 Tìm nhà đất trực tiếp trên các website")
+st.markdown(
+    "Các liên kết dưới đây mở trang rao bán hoặc tìm kiếm nhà đất Phan Rang. "
+    "Bạn vẫn cần kiểm tra từng tin về giá dưới 1,5 tỷ, ngày đăng trong 90 ngày, "
+    "sổ pháp lý và đường ô tô."
+)
+source_cols = st.columns(3)
+property_links = [
+    ("Batdongsan.com.vn – Nhà đất bán", "https://batdongsan.com.vn/nha-dat-ban-phan-rang-thap-cham-nt"),
+    ("Alonhadat – Nhà đất Phan Rang", "https://alonhadat.com.vn/nha-dat/can-ban/nha-dat/ninh-thuan/345/thanh-pho-phan-rang.html"),
+    ("Guland – Tìm nhà đất Phan Rang", "https://www.google.com/search?q=" + quote_plus("site:guland.vn mua bán nhà đất Phan Rang Tháp Chàm")),
+    ("Nhà Tốt – Tìm nhà Phan Rang", "https://www.google.com/search?q=" + quote_plus("site:nhatot.com bán nhà Phan Rang")),
+    ("Muaban.net – Tìm nhà Phan Rang", "https://www.google.com/search?q=" + quote_plus("site:muaban.net/bat-dong-san Phan Rang bán nhà")),
+    ("Google – Tin nhà có sổ, đường ô tô", "https://www.google.com/search?q=" + quote_plus('bán nhà Phan Rang dưới 1.5 tỷ sổ hồng đường ô tô')),
+    ("Facebook – Bài đăng bán nhà Phan Rang", "https://www.facebook.com/search/posts/?q=" + quote_plus("bán nhà Phan Rang sổ hồng ô tô")),
+    ("Google – Bài Facebook được lập chỉ mục", "https://www.google.com/search?q=" + quote_plus('site:facebook.com "bán nhà" "Phan Rang" sổ ô tô')),
+]
+for i, (label, url) in enumerate(property_links):
+    with source_cols[i % 3]:
+        st.markdown(f"- [{label}]({url})")
+st.markdown("---")
+
 with st.expander("⚙️ Tiêu chí lọc", expanded=True):
     c1, c2, c3 = st.columns(3)
     days_limit = c1.selectbox("Tin đăng trong", [30, 60, 90], index=2,
