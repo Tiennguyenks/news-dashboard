@@ -1,96 +1,128 @@
-import streamlit as st
-import feedparser
-import concurrent.futures
-import re
-import plotly.express as px
-import pandas as pd
+                seen_links.add(link)
+        except Exception:
+            # Một nguồn lỗi không làm dừng toàn bộ dashboard.
+            continue
 
-# ==============================================================================
-# CẤU HÌNH ĐA NGÔN NGỮ (DICTIONARY TRANSLATIONS)
-# ==============================================================================
-LANG_TEXT = {
-    "VI": {
-        "page_title": "Visual Daily News & Industry Dashboard",
-        "title": "📊 Daily News & Industry Trends Dashboard",
-        "author": "Nội dung được tạo bởi tiennguyenks",
-        "btn_refresh": "🔄 Cập nhật dữ liệu ngay",
-        "spinner": "Đang kết nối nguồn tin kỹ thuật, năng lượng và thị trường...",
-        "sec_overview": "📈 Tổng quan Chỉ số & Phân tích Thị trường",
-        "metric_vn": "Tin trong nước",
-        "metric_world": "Tin quốc tế",
-        "metric_energy": "Năng lượng & BESS",
-        "metric_market": "Thị trường / Trung Quốc",
-        "metric_gold_trend": "Xu hướng Vàng",
-        "chart_title": "🟡 Biểu đồ Tỷ lệ Xu hướng Giá vàng",
-        "chart_no_data": "Chưa đủ dữ liệu để vẽ biểu đồ xu hướng.",
-        "gold_articles_title": "📰 Bài viết Phân tích Giá vàng Mới nhất",
-        "read_original": "Đọc bài gốc ↗",
-        "summary_label": "📌 Điểm tin cốt lõi:",
-        "sec_specialized": "⚡ Công nghệ mới, Năng lượng tái tạo, BESS & Xu thế Thị trường",
-        "tab_energy": "🔋 Năng lượng tái tạo, BESS & Nguồn điện",
-        "tab_china": "🇨🇳 Xu thế Kinh doanh & Mặt hàng mới từ Trung Quốc",
-        "no_energy_news": "Chưa tìm thấy tin tức mới phát sinh về Năng lượng tái tạo/BESS.",
-        "no_china_news": "Chưa tìm thấy tin tức mới về Thị trường & Mặt hàng Trung Quốc.",
-        "sec_vn_news": "🇻🇳 Tin tức Trong nước",
-        "sec_world_news": "🌐 Tin tức Quốc tế",
-        "trend_up": "TĂNG 🔺",
-        "trend_down": "GIẢM 🔻",
-        "trend_neutral": "TRUNG LẬP",
-        "select_lang": "🌐 Chọn ngôn ngữ / Choose language:"
-    },
-    "EN": {
-        "page_title": "Visual Daily News & Industry Dashboard",
-        "title": "📊 Daily News & Industry Trends Dashboard",
-        "author": "Content created by tiennguyenks",
-        "btn_refresh": "🔄 Refresh Data Now",
-        "spinner": "Fetching technical, energy, and market feeds...",
-        "sec_overview": "📈 Market Indicators & Overview",
-        "metric_vn": "Domestic News",
-        "metric_world": "Global News",
-        "metric_energy": "Energy & BESS",
-        "metric_market": "Market / China",
-        "metric_gold_trend": "Gold Trend",
-        "chart_title": "🟡 Gold Price Trend Share",
-        "chart_no_data": "Not enough data for trend chart.",
-        "gold_articles_title": "📰 Latest Gold Analysis Articles",
-        "read_original": "Read full story ↗",
-        "summary_label": "📌 Key Takeaways:",
-        "sec_specialized": "⚡ Tech, Renewable Energy, BESS & Market Trends",
-        "tab_energy": "🔋 Renewable Energy, BESS & Power Grid",
-        "tab_china": "🇨🇳 Business Trends & China Commodities",
-        "no_energy_news": "No new updates on Renewable Energy/BESS at the moment.",
-        "no_china_news": "No new updates on China Market/Commodities at the moment.",
-        "sec_vn_news": "🇻🇳 Domestic News",
-        "sec_world_news": "🌐 World News",
-        "trend_up": "UP 🔺",
-        "trend_down": "DOWN 🔻",
-        "trend_neutral": "NEUTRAL",
-        "select_lang": "🌐 Choose language / Chọn ngôn ngữ:"
-    }
-}
+    return results
 
-# ==============================================================================
-# CẤU HÌNH RSS FEEDS THEO NGÔN NGỮ
-# ==============================================================================
-RSS_FEEDS_CONFIG = {
-    "VI": {
-        "Trong nước": [
-            {"name": "VnExpress - Thời sự", "url": "https://vnexpress.net/rss/thoi-su.rss"},
-            {"name": "Tuổi Trẻ - Thế giới", "url": "https://tuoitre.vn/rss/the-gioi.rss"},
-            {"name": "VietNamNet - Thời sự", "url": "https://vietnamnet.vn/rss/thoi-su.rss"}
-        ],
-        "Thế giới": [
-            {"name": "Reuters - World", "url": "https://news.google.com/rss/search?q=when:1d+source:Reuters&hl=en-US&gl=US&ceid=US:en"},
-            {"name": "BBC News - World", "url": "http://feeds.bbci.co.uk/news/world/rss.xml"}
-        ],
-        "Công nghệ & Năng lượng": [
-            {"name": "VnExpress - Khoa học", "url": "https://vnexpress.net/rss/khoa-hoc.rss"},
-            {"name": "VietNamNet - Công nghệ", "url": "https://vietnamnet.vn/rss/cong-nghe.rss"},
-            {"name": "Google News - BESS & Renewable", "url": "https://news.google.com/rss/search?q=renewable+energy+OR+BESS+OR+energy+storage+when:1d&hl=vi&gl=VN&ceid=VN:vi"}
-        ],
-        "Thị trường & Trung Quốc": [
-            {"name": "VnExpress - Kinh doanh", "url": "https://vnexpress.net/rss/kinh-doanh.rss"},
-            {"name": "Google News - Xu hướng Trung Quốc", "url": "https://news.google.com/rss/search?q=Trung+Quốc+xuất+khẩu+OR+công+nghệ+when:1d&hl=vi&gl=VN&ceid=VN:vi"}
+
+def extract_property_price(text):
+    """Ước lượng giá từ cách viết phổ biến trong tin đăng tiếng Việt."""
+    s = (text or "").lower().replace(",", ".")
+    # Ví dụ: 1 tỷ 300 triệu; 1.2 tỷ; 950 triệu
+    m = re.search(
+        r'(\d+(?:\.\d+)?)\s*tỷ\s*(?:(\d+(?:\.\d+)?)\s*triệu)?',
+        s
+    )
+    if m:
+        billions = float(m.group(1))
+        millions = float(m.group(2) or 0)
+        return int(billions * 1_000_000_000 + millions * 1_000_000)
+
+    m = re.search(r'(\d+(?:\.\d+)?)\s*triệu', s)
+    if m:
+        return int(float(m.group(1)) * 1_000_000)
+
+    # Dạng 1.350.000.000 đ hoặc 1350000000 đồng
+    m = re.search(r'(?<!\d)(\d{1,3}(?:\.\d{3}){2,}|\d{9,})(?:\s*(?:đ|đồng|vnd))?', s)
+    if m:
+        digits = re.sub(r'\D', '', m.group(1))
+        value = int(digits)
+        if 100_000_000 <= value <= 100_000_000_000:
+            return value
+    return None
+
+
+st.markdown("---")
+st.markdown("### 🏠 Nhà đất Phan Rang – Tháp Chàm")
+st.caption(
+    "Bộ lọc tin ứng viên từ Google News RSS. Ngày/giá có thể thiếu hoặc "
+    "không chính xác vì đây không phải cơ sở dữ liệu đầy đủ của các sàn."
+)
+
+with st.expander("⚙️ Tiêu chí lọc", expanded=True):
+    c1, c2, c3 = st.columns(3)
+    days_limit = c1.selectbox("Tin đăng trong", [30, 60, 90], index=2,
+                              format_func=lambda x: f"{x} ngày gần nhất")
+    max_price_billion = c2.number_input(
+        "Giá tối đa (tỷ đồng)", min_value=0.1, max_value=20.0,
+        value=1.5, step=0.1
+    )
+    strict_only = c3.checkbox(
+        "Chỉ hiện tin có từ khóa sổ + ô tô", value=True
+    )
+
+if st.button("🔎 Tìm nhà Phan Rang ngay", key="search_property"):
+    with st.spinner("Đang tìm tin nhà đất trên Google News RSS..."):
+        st.session_state["property_results"] = fetch_property_candidates(
+            days=days_limit
+        )
+        st.session_state["property_days"] = days_limit
+        st.session_state["property_max_price"] = max_price_billion
+
+if "property_results" in st.session_state:
+    property_results = st.session_state["property_results"]
+    max_price = st.session_state.get("property_max_price", 1.5) * 1_000_000_000
+
+    # Chỉ lọc nghiêm ngặt khi đã tìm thấy giá, từ khóa sổ và từ khóa ô tô.
+    if strict_only:
+        visible_results = [
+            x for x in property_results
+            if x["_price_vnd"] is not None
+            and x["_price_vnd"] < max_price
+            and x["_legal_ok"] and x["_car_ok"]
         ]
-    },
-    "EN": {
+    else:
+        visible_results = [
+            x for x in property_results
+            if x["_price_vnd"] is None or x["_price_vnd"] < max_price
+        ]
+
+    st.metric("Số tin phù hợp với bộ lọc từ khóa", len(visible_results))
+    if visible_results:
+        display_df = pd.DataFrame([
+            {k: v for k, v in item.items() if not k.startswith("_")}
+            for item in visible_results
+        ])
+        st.dataframe(
+            display_df.drop(columns=["Liên kết"], errors="ignore"),
+            use_container_width=True,
+            hide_index=True
+        )
+        for item in visible_results:
+            st.markdown(
+                f"- **[{item['Tiêu đề']}]({item['Liên kết']})** — "
+                f"{item['Giá phát hiện (ước tính)']} · {item['Ngày đăng']}  \n"
+                f"Pháp lý: {item['Có từ khóa sổ']} · "
+                f"Đường ô tô: {item['Có từ khóa ô tô']} · "
+                f"{item['Trạng thái']}"
+            )
+        export_df = pd.DataFrame([
+            {k: v for k, v in item.items() if not k.startswith("_")}
+            for item in visible_results
+        ])
+        st.download_button(
+            "⬇️ Tải danh sách nhà ra CSV",
+            data=export_df.to_csv(index=False).encode("utf-8-sig"),
+            file_name="nha_phan_rang.csv",
+            mime="text/csv"
+        )
+    else:
+        st.warning(
+            "Chưa tìm thấy tin nào đủ các điều kiện trong dữ liệu RSS hiện tại. "
+            "Hãy bỏ chọn bộ lọc nghiêm ngặt để xem các tin cần xác minh, "
+            "hoặc kiểm tra trực tiếp các website rao bán."
+        )
+
+st.info(
+    "Lưu ý: kết quả RSS chỉ giúp sàng lọc ban đầu. Cần mở tin gốc để xác minh "
+    "ngày đăng, giá bán, sổ đỏ/sổ hồng, quy hoạch và đường ô tô thực tế. "
+    "Một tin không xuất hiện ở đây không có nghĩa là không tồn tại."
+)
+
+
+# ==============================================================================
+# CHÂN TRANG
+# ==============================================================================
+st.markdown(f"""
+    <div class="footer">
